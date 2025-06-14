@@ -1,6 +1,6 @@
-import fetch from 'node-fetch';
+const fetch = require('node-fetch');
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   const { code } = req.query;
 
   if (!code) {
@@ -10,7 +10,7 @@ export default async function handler(req, res) {
   const params = new URLSearchParams({
     grant_type: 'authorization_code',
     code,
-    redirect_uri: 'https://YOUR-VERCEL-URL.vercel.app/api/linkedin-callback',
+    redirect_uri: 'https://linkedin-o-auth-bridge.vercel.app/api/linkedin-callback',
     client_id: '86hvgkwo797ev0',
     client_secret: 'WPL_AP1.QEjUmq4Hu1qwF6cG.eQt6Iw==',
   });
@@ -28,10 +28,10 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Failed to get access token', details: tokenData });
     }
 
-    // Redirect to your app via deep link
+    // ✅ Redirect back to your app (custom scheme)
     return res.redirect(`arivaloyalty://linkedin?token=${tokenData.access_token}`);
   } catch (error) {
     console.error('OAuth error:', error);
     return res.status(500).send('OAuth error occurred');
   }
-}
+};
