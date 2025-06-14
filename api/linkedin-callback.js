@@ -16,14 +16,14 @@ module.exports = async function handler(req, res) {
   });
 
   try {
-    // Get access token
+    // 🔐 Get Access Token
     const tokenRes = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: params.toString(),
     });
-
     const tokenData = await tokenRes.json();
+
     if (!tokenData.access_token) {
       console.error('❌ Failed to get LinkedIn token:', tokenData);
       return res.status(500).json({ error: 'Failed to get access token', details: tokenData });
@@ -32,16 +32,17 @@ module.exports = async function handler(req, res) {
     const accessToken = tokenData.access_token;
     console.log('🔐 LinkedIn Access Token:', accessToken);
 
-    // Fetch user profile
+    // 👤 Get Profile Info
     const profileRes = await fetch('https://api.linkedin.com/v2/me', {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     const profile = await profileRes.json();
-    console.log('👤 LinkedIn Profile:', profile);
+    console.log('👤 LinkedIn raw profile response:', profile);
 
     const fullName = `${profile.localizedFirstName || ''} ${profile.localizedLastName || ''}`.trim() || 'LinkedIn User';
+    console.log('✅ Parsed Name:', fullName);
 
-    // Fetch user email
+    // 📧 Get Email Info
     const emailRes = await fetch(
       'https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))',
       {
@@ -49,11 +50,12 @@ module.exports = async function handler(req, res) {
       }
     );
     const emailData = await emailRes.json();
-    console.log('📧 LinkedIn Email:', emailData);
+    console.log('📧 LinkedIn raw email response:', emailData);
 
     const email = emailData?.elements?.[0]?.['handle~']?.emailAddress || 'unknown@example.com';
+    console.log('✅ Parsed Email:', email);
 
-    // Final redirect
+    // 🚀 Redirect to app with data
     const query = new URLSearchParams({
       name: fullName,
       email,
