@@ -1,3 +1,7 @@
+// linkedin-callback.js
+
+import { createRemoteJWKSet, jwtVerify } from 'jose';
+
 export const config = {
   runtime: 'edge',
 };
@@ -23,7 +27,7 @@ export default async function handler(req) {
       return new Response('Missing authorization code', { status: 400 });
     }
 
-    // 🔐 Exchange authorization code for OpenID token
+    // 🔐 Exchange authorization code for tokens
     const tokenRes = await fetch(LINKEDIN_TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -37,27 +41,26 @@ export default async function handler(req) {
     });
 
     const rawText = await tokenRes.text();
-    console.log('📦 Raw token response:', rawText);
+    console.log('📦 Raw LinkedIn token response:', rawText);
+    console.log('🔗 Token request status:', tokenRes.status);
 
     let tokenData;
     try {
       tokenData = JSON.parse(rawText);
     } catch (err) {
-      console.error('❌ Failed to parse LinkedIn token response:', rawText);
-      return new Response('LinkedIn returned non-JSON data', { status: 500 });
+      console.error('❌ JSON Parse Error:', err);
+      return new Response('LinkedIn token response was not JSON.', { status: 500 });
     }
 
     if (!tokenRes.ok || !tokenData.id_token) {
-      console.error('❌ Token exchange failed:', tokenData);
-      return new Response('Failed to get ID token from LinkedIn', { status: 500 });
+      console.error('❌ Failed to get access token or id_token:', tokenData);
+      return new Response('Failed to get access token', { status: 500 });
     }
 
     const idToken = tokenData.id_token;
 
-    // ✅ Verify LinkedIn OpenID token
-    const { jwtVerify, createRemoteJWKSet } = await import('jose');
+    // ✅ Verify JWT using LinkedIn's JWKS
     const JWKS = createRemoteJWKSet(new URL(LINKEDIN_JWKS_URL));
-
     const { payload } = await jwtVerify(idToken, JWKS, {
       issuer: 'https://www.linkedin.com',
       audience: process.env.LINKEDIN_CLIENT_ID,
@@ -67,13 +70,15 @@ export default async function handler(req) {
       payload.name ||
       `${payload.given_name || ''} ${payload.family_name || ''}`.trim() ||
       'LinkedIn User';
-
     const email = payload.email || 'unknown@example.com';
 
     console.log('✅ Verified LinkedIn User:', { name, email });
 
-    // 🔁 Redirect back to mobile app via deep link
-    const redirectUrl = `arivaloyalty://linkedin?token=${encodeURIComponent(idToken)}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}`;
+    // 📲 Redirect back to mobile app with token and user info
+    const redirectUrl = `arivaloyalty://linkedin?token=${encodeURIComponent(
+      idToken
+    )}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}`;
+
     return Response.redirect(redirectUrl, 302);
   } catch (err) {
     console.error('🔴 LinkedIn Callback Verification Error:', err);
