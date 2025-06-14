@@ -1,65 +1,62 @@
-// /api/linkedin-callback.js
+import { createRemoteJWKSet, jwtVerify } from 'jose';
+
+const LINKEDIN_JWKS_URL = 'https://www.linkedin.com/oauth/openid/jwks';
+
 export default async function handler(req, res) {
-  const { code, state, error, error_description } = req.query;
-
-  if (error) {
-    console.error('❌ LinkedIn Auth Error:', error_description);
-    return res.redirect(`arivaloyalty://linkedin?error=${encodeURIComponent(error_description)}`);
-  }
-
-  if (!code) {
-    return res.redirect(`arivaloyalty://linkedin?error=Missing authorization code`);
-  }
-
   try {
-    const clientId = process.env.LINKEDIN_CLIENT_ID;
-    const clientSecret = process.env.LINKEDIN_CLIENT_SECRET;
-    const redirectUri = 'https://linkedin-o-auth-bridge.vercel.app/api/linkedin-callback';
+    const { code, error, error_description } = req.query;
 
-    // 🔐 Exchange code for access token
-    const tokenRes = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+    if (error) {
+      console.error('❌ LinkedIn OAuth Error:', error_description);
+      return res.status(400).send(`LinkedIn Error: ${error_description}`);
+    }
+
+    if (!code) {
+      return res.status(400).send('Missing authorization code');
+    }
+
+    // 🔐 Exchange authorization code for tokens
+    const tokenRes = await fetch('https://www.linkedin.com/oauth/v2/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
         code,
-        redirect_uri: redirectUri,
-        client_id: clientId,
-        client_secret: clientSecret,
+        redirect_uri: 'https://linkedin-o-auth-bridge.vercel.app/api/linkedin-callback',
+        client_id: process.env.LINKEDIN_CLIENT_ID,
+        client_secret: process.env.LINKEDIN_CLIENT_SECRET,
       }),
     });
 
     const tokenData = await tokenRes.json();
 
-    if (!tokenData.access_token) {
-      throw new Error('Failed to get access token');
+    if (!tokenRes.ok || !tokenData.id_token) {
+      console.error('❌ Token error:', tokenData);
+      return res.status(500).send('Failed to get access token');
     }
 
-    const accessToken = tokenData.access_token;
+    const idToken = tokenData.id_token;
 
-    // 🧑‍💼 Get user info using OpenID Connect endpoint
-    const userInfoRes = await fetch('https://api.linkedin.com/v2/userinfo', {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
+    // 🔐 Verify JWT using LinkedIn's JWKS
+    const JWKS = createRemoteJWKSet(new URL(LINKEDIN_JWKS_URL));
+    const { payload } = await jwtVerify(idToken, JWKS, {
+      issuer: 'https://www.linkedin.com',
+      audience: process.env.LINKEDIN_CLIENT_ID,
     });
 
-    const userInfo = await userInfoRes.json();
+    const name =
+      payload.name ||
+      `${payload.given_name || ''} ${payload.family_name || ''}`.trim() ||
+      'LinkedIn User';
+    const email = payload.email || 'unknown@example.com';
 
-    console.log('👤 OpenID LinkedIn Profile:', userInfo);
+    console.log('✅ Verified LinkedIn User:', { name, email });
 
-    const name = userInfo.name || 'LinkedIn User';
-    const email = userInfo.email || 'unknown@example.com';
+    const redirectUrl = `arivaloyalty://linkedin?token=${encodeURIComponent(idToken)}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}`;
 
-    const query = new URLSearchParams({
-      token: accessToken,
-      name,
-      email,
-    }).toString();
-
-    res.redirect(`arivaloyalty://linkedin?${query}`);
+    return res.redirect(redirectUrl);
   } catch (err) {
-    console.error('🔴 Callback Processing Error:', err);
-    res.redirect(`arivaloyalty://linkedin?error=${encodeURIComponent(err.message)}`);
+    console.error('🔴 LinkedIn Callback Verification Error:', err);
+    return res.status(500).send('LinkedIn login failed');
   }
 }
