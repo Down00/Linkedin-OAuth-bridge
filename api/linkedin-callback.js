@@ -27,17 +27,22 @@ export default async function handler(req) {
       return new Response('Missing authorization code', { status: 400 });
     }
 
-    // 🔐 Exchange authorization code for tokens
+    // Prepare token request data
+    const tokenRequestBody = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: REDIRECT_URI,
+      client_id: process.env.LINKEDIN_CLIENT_ID,
+      client_secret: process.env.LINKEDIN_CLIENT_SECRET,
+    });
+
+    console.log('🔐 Token request body:', Object.fromEntries(tokenRequestBody.entries()));
+
+    // 🔐 Exchange code for token
     const tokenRes = await fetch(LINKEDIN_TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        code,
-        redirect_uri: REDIRECT_URI,
-        client_id: process.env.LINKEDIN_CLIENT_ID,
-        client_secret: process.env.LINKEDIN_CLIENT_SECRET,
-      }),
+      body: tokenRequestBody,
     });
 
     const rawText = await tokenRes.text();
