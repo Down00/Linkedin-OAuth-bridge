@@ -1,9 +1,8 @@
-import { createRemoteJWKSet, jwtVerify } from 'jose';
-
-const LINKEDIN_JWKS_URL = 'https://www.linkedin.com/oauth/openid/jwks';
-
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   try {
+    const { createRemoteJWKSet, jwtVerify } = await import('jose');
+
+    const LINKEDIN_JWKS_URL = 'https://www.linkedin.com/oauth/openid/jwks';
     const { code, error, error_description } = req.query;
 
     if (error) {
@@ -37,7 +36,7 @@ export default async function handler(req, res) {
 
     const idToken = tokenData.id_token;
 
-    // 🔐 Verify JWT using LinkedIn's JWKS
+    // ✅ Verify JWT using LinkedIn's JWKS
     const JWKS = createRemoteJWKSet(new URL(LINKEDIN_JWKS_URL));
     const { payload } = await jwtVerify(idToken, JWKS, {
       issuer: 'https://www.linkedin.com',
@@ -59,4 +58,4 @@ export default async function handler(req, res) {
     console.error('🔴 LinkedIn Callback Verification Error:', err);
     return res.status(500).send('LinkedIn login failed');
   }
-}
+};
