@@ -10,7 +10,7 @@ module.exports = async function handler(req, res) {
   const params = new URLSearchParams({
     grant_type: 'authorization_code',
     code,
-    redirect_uri: 'https://linkedin-o-auth-bridge.vercel.app/api/linkedin-callback',
+    redirect_uri: 'https://linkedin-o-auth-bridge-down00s-projects.vercel.app/api/linkedin-callback',
     client_id: '86hvgkwo797ev0',
     client_secret: 'WPL_AP1.QEjUmq4Hu1qwF6cG.eQt6Iw==',
   });
