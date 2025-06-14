@@ -1,16 +1,19 @@
 const fetch = require('node-fetch');
 
 module.exports = async function handler(req, res) {
+  console.log('📥 LinkedIn callback reached with query:', req.query);
+
   const { code } = req.query;
 
   if (!code) {
+    console.error('❌ No code received. Full query:', req.query);
     return res.status(400).send('Missing authorization code');
   }
 
   const params = new URLSearchParams({
     grant_type: 'authorization_code',
     code,
-    redirect_uri: 'https://linkedin-o-auth-bridge-down00s-projects.vercel.app/api/linkedin-callback',
+    redirect_uri: 'https://linkedin-o-auth-bridge.vercel.app/api/linkedin-callback',
     client_id: '86hvgkwo797ev0',
     client_secret: 'WPL_AP1.QEjUmq4Hu1qwF6cG.eQt6Iw==',
   });
