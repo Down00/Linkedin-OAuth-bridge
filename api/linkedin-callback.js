@@ -12,11 +12,11 @@ module.exports = async function handler(req, res) {
     code,
     redirect_uri: 'https://linkedin-o-auth-bridge.vercel.app/api/linkedin-callback',
     client_id: '86hvgkwo797ev0',
-    client_secret: 'WPL_AP1.QEjUmq4Hu1qwF6cG.eQt6Iw==', // Keep only in backend
+    client_secret: 'WPL_AP1.QEjUmq4Hu1qwF6cG.eQt6Iw==',
   });
 
   try {
-    // Exchange code for access token
+    // Get access token
     const tokenRes = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -24,20 +24,24 @@ module.exports = async function handler(req, res) {
     });
 
     const tokenData = await tokenRes.json();
-
     if (!tokenData.access_token) {
+      console.error('❌ Failed to get LinkedIn token:', tokenData);
       return res.status(500).json({ error: 'Failed to get access token', details: tokenData });
     }
 
     const accessToken = tokenData.access_token;
+    console.log('🔐 LinkedIn Access Token:', accessToken);
 
     // Fetch user profile
     const profileRes = await fetch('https://api.linkedin.com/v2/me', {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     const profile = await profileRes.json();
+    console.log('👤 LinkedIn Profile:', profile);
 
-    // Fetch email address
+    const fullName = `${profile.localizedFirstName || ''} ${profile.localizedLastName || ''}`.trim() || 'LinkedIn User';
+
+    // Fetch user email
     const emailRes = await fetch(
       'https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))',
       {
@@ -45,20 +49,20 @@ module.exports = async function handler(req, res) {
       }
     );
     const emailData = await emailRes.json();
+    console.log('📧 LinkedIn Email:', emailData);
 
-    const fullName = `${profile.localizedFirstName || ''} ${profile.localizedLastName || ''}`.trim() || 'LinkedIn User';
     const email = emailData?.elements?.[0]?.['handle~']?.emailAddress || 'unknown@example.com';
 
-    // Build redirect with token and user info
+    // Final redirect
     const query = new URLSearchParams({
       name: fullName,
       email,
-      token: accessToken, // ✅ Pass the token to the deep link
+      token: accessToken,
     }).toString();
 
     return res.redirect(`arivaloyalty://linkedin?${query}`);
   } catch (error) {
-    console.error('OAuth error:', error);
+    console.error('🔥 OAuth error:', error);
     return res.status(500).send('OAuth error occurred');
   }
 };
