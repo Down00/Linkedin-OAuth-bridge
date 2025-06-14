@@ -12,10 +12,11 @@ module.exports = async function handler(req, res) {
     code,
     redirect_uri: 'https://linkedin-o-auth-bridge.vercel.app/api/linkedin-callback',
     client_id: '86hvgkwo797ev0',
-    client_secret: 'WPL_AP1.QEjUmq4Hu1qwF6cG.eQt6Iw==',
+    client_secret: 'WPL_AP1.QEjUmq4Hu1qwF6cG.eQt6Iw==', // ✅ Keep only in backend
   });
 
   try {
+    // Exchange code for access token
     const tokenRes = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -28,8 +29,39 @@ module.exports = async function handler(req, res) {
       return res.status(500).json({ error: 'Failed to get access token', details: tokenData });
     }
 
-    // ✅ Redirect back to your app (custom scheme)
-    return res.redirect(`arivaloyalty://linkedin?token=${tokenData.access_token}`);
+    const accessToken = tokenData.access_token;
+
+    // Fetch basic profile
+    const profileRes = await fetch('https://api.linkedin.com/v2/me', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    const profile = await profileRes.json();
+
+    // Fetch email address
+    const emailRes = await fetch(
+      'https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))',
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    const emailData = await emailRes.json();
+    const email = emailData.elements?.[0]?.['handle~']?.emailAddress || '';
+
+    const fullName = `${profile.localizedFirstName || ''} ${profile.localizedLastName || ''}`.trim();
+
+    // Redirect to app with user data
+    const query = new URLSearchParams({
+      name: fullName,
+      email,
+    }).toString();
+
+    return res.redirect(`arivaloyalty://linkedin?${query}`);
   } catch (error) {
     console.error('OAuth error:', error);
     return res.status(500).send('OAuth error occurred');
